@@ -3,7 +3,6 @@ import torchvision.transforms as transforms
 import traceback
 import logging
 import torch
-import io
 from PIL import Image, ImageFile
 from transformers import CLIPProcessor, CLIPModel
 from typing import List
@@ -31,7 +30,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
             raise Exception(f"Failed to load model {model_name}: {str(e)}")
 
     def load(self, local_path, **kwargs):
-        if self._model_entity is None:
+        if self._model_entity is not None:
             model_name = self.model_entity.configuration.get("model_name")
         else:
             model_name = "dinov2_vits14"
@@ -74,7 +73,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         with torch.no_grad():
             batch_embeddings = self.model(batch)
 
-        return batch_embeddings.cpu().numpy()
+        return batch_embeddings.cpu().numpy().tolist()
 
     def embed(self, batch: List[dl.Item], **kwargs):
         features = []
@@ -85,7 +84,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                     item.download(save_locally=False, to_array=True)
                 )
                 image_features = self.embed_images([orig_image])
-                features.append(image_features)
+                features.extend(image_features)
             else:
                 features.append(None)
         return features
