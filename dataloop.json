@@ -23,6 +23,12 @@
         "name": "dino_v2_adapter",
         "entryPoint": "adapter.py",
         "className": "DINOv2Adapter",
+        "initInputs": [
+          {
+            "type": "Model",
+            "name": "model_entity"
+          }
+        ],
         "functions": [
           {
             "name": "embed_items",
