@@ -25,8 +25,8 @@
         "className": "DINOv2Adapter",
         "functions": [
           {
-            "name": "extract_item",
-            "description": "Extract CLIP features on a single item",
+            "name": "embed_items",
+            "description": "Extract DINOv2 features on a single item",
             "input": [
               {
                 "type": "Item",
@@ -37,12 +37,18 @@
               {
                 "type": "Item",
                 "name": "item"
+              },
+              {
+                "type": "Json",
+                "name": "json",
+                "description": "Embeddings of items."
               }
+
             ],
             "displayName": "Clip Features"
           },
           {
-            "name": "extract_dataset",
+            "name": "embed_dataset",
             "description": "Extract DINOv2 features on a dataset",
             "input": [
               {
@@ -51,7 +57,7 @@
               },
               {
                 "type": "Json",
-                "name": "query"
+                "name": "filters"
               }
             ],
             "output": [
