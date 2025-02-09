@@ -74,7 +74,7 @@
     "services": [
       {
         "name": "dino-v2-extraction",
-        "moduleName": "dino_v2_extract_features",
+        "moduleName": "dino_v2_adapter",
         "runtime": {
           "podType": "regular-m",
           "concurrency": 10,
