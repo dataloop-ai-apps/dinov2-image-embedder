@@ -92,6 +92,7 @@
     "models": [
       {
         "name": "dino-v2",
+        "status": "pre-trained",
         "moduleName": "dino_v2_adapter",
         "configuration": {
           "batch_size": 10,
