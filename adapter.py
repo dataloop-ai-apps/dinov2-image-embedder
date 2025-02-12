@@ -37,7 +37,9 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = self.load_dinov2_model(model_name)
         self.model.to(self.device)
-        self.configuration["embeddings_size"] = self.configuration.get("embeddings_size", 384)
+        self.configuration["embeddings_size"] = self.configuration.get(
+            "embeddings_size", 384
+        )
 
     def preprocess_image(self, images: List[Image.Image]) -> torch.Tensor:
         """
@@ -60,6 +62,8 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         )
 
         try:
+            if not images.mode == "RGB":
+                images = images.convert("RGB")
             image_tensor = transform(images).unsqueeze(0)
             image_tensor = image_tensor.to(self.device)
             return image_tensor
@@ -92,3 +96,24 @@ class DINOv2Adapter(dl.BaseModelAdapter):
 
     def prepare_item_func(self, item: dl.Item):
         return item
+
+
+if __name__ == "__main__":
+    model = dl.models.get(model_id="67a8a11fdefe6a0c7bf1990b")
+    adapter = DINOv2Adapter(model_entity=model)
+    filters = dl.Filters()
+    filters.add(
+        field="id",
+        values=[
+            "67a484cb6336b7145d8b967d",
+            "67a22d8a7e61fdd99381f343",
+            "67a21e4cd594d4bfd3925076",
+            "676d4d2ae5e4f32de26f7a06",
+            "676d4d2a07bcd5407839b9a3",
+            "676d4d29e5e4f35e926f79ff",
+        ],
+        operator=dl.FiltersOperations.IN,
+    )
+    adapter.embed_dataset(
+        dataset=dl.datasets.get(dataset_id="676d4cb7638f92c8253f7649"), filters=filters
+    )
