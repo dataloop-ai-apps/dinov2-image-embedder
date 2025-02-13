@@ -2,7 +2,7 @@
   "name": "dino-v2-adapter",
   "displayName": "DINOv2 Adapter",
   "description": "DINOv2 image embedder",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "scope": "public",
   "attributes": {
     "Category": "Model",
@@ -100,6 +100,7 @@
         "name": "dino-v2",
         "status": "pre-trained",
         "moduleName": "dino_v2_adapter",
+        "status": "pre-trained",
         "configuration": {
           "batch_size": 10,
           "model_name": "dinov2_vits14"
