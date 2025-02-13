@@ -23,10 +23,16 @@
         "name": "dino_v2_adapter",
         "entryPoint": "adapter.py",
         "className": "DINOv2Adapter",
+        "initInputs": [
+          {
+            "type": "Model",
+            "name": "model_entity"
+          }
+        ],
         "functions": [
           {
-            "name": "extract_item",
-            "description": "Extract CLIP features on a single item",
+            "name": "embed_items",
+            "description": "Extract DINOv2 features on a single item",
             "input": [
               {
                 "type": "Item",
@@ -37,12 +43,18 @@
               {
                 "type": "Item",
                 "name": "item"
+              },
+              {
+                "type": "Json",
+                "name": "json",
+                "description": "Embeddings of items."
               }
+
             ],
             "displayName": "Clip Features"
           },
           {
-            "name": "extract_dataset",
+            "name": "embed_dataset",
             "description": "Extract DINOv2 features on a dataset",
             "input": [
               {
@@ -51,7 +63,7 @@
               },
               {
                 "type": "Json",
-                "name": "query"
+                "name": "filters"
               }
             ],
             "output": [
@@ -67,7 +79,7 @@
     ],
     "services": [
       {
-        "name": "dino-v2-service",
+        "name": "dino-v2-extraction",
         "moduleName": "dino_v2_adapter",
         "runtime": {
           "podType": "regular-m",
@@ -86,6 +98,7 @@
     "models": [
       {
         "name": "dino-v2",
+        "status": "pre-trained",
         "moduleName": "dino_v2_adapter",
         "status": "pre-trained",
         "configuration": {

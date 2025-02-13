@@ -37,6 +37,9 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = self.load_dinov2_model(model_name)
         self.model.to(self.device)
+        self.configuration["embeddings_size"] = self.configuration.get(
+            "embeddings_size", 384
+        )
 
     def preprocess_image(self, images: List[Image.Image]) -> torch.Tensor:
         """
@@ -59,6 +62,8 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         )
 
         try:
+            if not images.mode == "RGB":
+                images = images.convert("RGB")
             image_tensor = transform(images).unsqueeze(0)
             image_tensor = image_tensor.to(self.device)
             return image_tensor
