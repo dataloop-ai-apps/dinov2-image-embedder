@@ -65,3 +65,5 @@ Thank you to the contributors of the DINOv2 project for advancing the field of s
 * [DINOv2 GitHub Repository](https://github.com/facebookresearch/dinov2)
 * [DINOv2 Paper](https://arxiv.org/abs/2304.07193)
 * [Meta AI Blog Post on DINOv2](https://ai.facebook.com/blog/dino-v2-computer-vision-self-supervised-learning/)
+
+

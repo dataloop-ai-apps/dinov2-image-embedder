@@ -2,7 +2,7 @@
   "name": "dino-v2-adapter",
   "displayName": "DINOv2 Adapter",
   "description": "DINOv2 image embedder",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "scope": "public",
   "attributes": {
     "Category": "Model",
@@ -67,8 +67,8 @@
     ],
     "services": [
       {
-        "name": "dino-v2-extraction",
-        "moduleName": "dino_v2_extract_features",
+        "name": "dino-v2-service",
+        "moduleName": "dino_v2_adapter",
         "runtime": {
           "podType": "regular-m",
           "concurrency": 10,
@@ -87,6 +87,7 @@
       {
         "name": "dino-v2",
         "moduleName": "dino_v2_adapter",
+        "status": "pre-trained",
         "configuration": {
           "batch_size": 10,
           "model_name": "dinov2_vits14"
