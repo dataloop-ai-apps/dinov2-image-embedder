@@ -4,7 +4,6 @@ import traceback
 import logging
 import torch
 from PIL import Image, ImageFile
-from transformers import CLIPProcessor, CLIPModel
 from typing import List
 
 logger = logging.getLogger("[DINOV2-ADAPTER]")
@@ -41,12 +40,12 @@ class DINOv2Adapter(dl.BaseModelAdapter):
             "embeddings_size", 384
         )
 
-    def preprocess_image(self, images: List[Image.Image]) -> torch.Tensor:
+    def preprocess_image(self, image: Image.Image) -> torch.Tensor:
         """
         Preprocess an image for DINOv2 inference.
 
         Args:
-            images: List of images
+            image: PIL.Image
         Returns:
             Preprocessed image tensor
         """
@@ -62,16 +61,16 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         )
 
         try:
-            if not images.mode == "RGB":
-                images = images.convert("RGB")
-            image_tensor = transform(images).unsqueeze(0)
+            if not image.mode == "RGB":
+                image = image.convert("RGB")
+            image_tensor = transform(image).unsqueeze(0)
             image_tensor = image_tensor.to(self.device)
             return image_tensor
         except Exception as e:
             raise Exception(f"Failed to preprocess image: {traceback.format_exc()}")
 
     def embed_images(self, images: List[Image.Image]):
-        # Preprocess for Meta clip
+        # Preprocess
         batch_tensors = [self.preprocess_image(image) for image in images]
         batch = torch.cat(batch_tensors)
 

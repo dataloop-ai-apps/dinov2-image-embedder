@@ -51,7 +51,7 @@
               }
 
             ],
-            "displayName": "Clip Features"
+            "displayName": "DINOv2 Features"
           },
           {
             "name": "embed_dataset",
