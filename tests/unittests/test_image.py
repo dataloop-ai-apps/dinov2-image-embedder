@@ -1,5 +1,4 @@
 import unittest
-import dtlpy as dl
 import os
 
 from PIL import Image
