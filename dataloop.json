@@ -68,12 +68,7 @@
                 "name": "filters"
               }
             ],
-            "output": [
-              {
-                "type": "Dataset",
-                "name": "dataset"
-              }
-            ],
+            "output": [],
             "displayName": "DINOv2 Dataset Features"
           }
         ]
