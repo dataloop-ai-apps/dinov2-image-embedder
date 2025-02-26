@@ -2,22 +2,25 @@
   "name": "dino-v2-adapter",
   "displayName": "DINOv2 Adapter",
   "description": "DINOv2 image embedder",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "scope": "public",
   "attributes": {
     "Category": "Model",
     "Provider": "Meta",
-    "Media Type": ["Image"],
-    "Computer Vision": ["Embeddings"],
+    "Media Type": [
+      "Image"
+    ],
+    "Computer Vision": [
+      "Embeddings"
+    ],
     "License": "Apache 2.0"
   },
-    "codebase": {
+  "codebase": {
     "type": "git",
     "gitUrl": "https://github.com/dataloop-ai-apps/dino-v2-adapter",
-    "gitTag": "0.1.7"
+    "gitTag": "0.1.8"
   },
   "components": {
-
     "modules": [
       {
         "name": "dino_v2_adapter",
@@ -49,7 +52,6 @@
                 "name": "json",
                 "description": "Embeddings of items."
               }
-
             ],
             "displayName": "DINOv2 Features"
           },
@@ -66,20 +68,15 @@
                 "name": "filters"
               }
             ],
-            "output": [
-              {
-                "type": "Dataset",
-                "name": "dataset"
-              }
-            ],
+            "output": [],
             "displayName": "DINOv2 Dataset Features"
           }
         ]
       }
     ],
-    "services": [
+    "computeConfigs": [
       {
-        "name": "dino-v2-extraction",
+        "name": "dino-v2-cpu",
         "moduleName": "dino_v2_adapter",
         "runtime": {
           "podType": "regular-m",
@@ -98,7 +95,6 @@
     "models": [
       {
         "name": "dino-v2",
-        "status": "pre-trained",
         "moduleName": "dino_v2_adapter",
         "status": "pre-trained",
         "configuration": {
