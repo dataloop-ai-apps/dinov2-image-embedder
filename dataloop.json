@@ -100,7 +100,6 @@
     "models": [
       {
         "name": "dino-v2",
-        "status": "pre-trained",
         "moduleName": "dino_v2_adapter",
         "status": "pre-trained",
         "configuration": {
