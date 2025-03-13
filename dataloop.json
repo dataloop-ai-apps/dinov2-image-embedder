@@ -97,10 +97,12 @@
         "name": "dino-v2",
         "moduleName": "dino_v2_adapter",
         "status": "pre-trained",
+        "scope": "project",
         "configuration": {
           "batch_size": 10,
           "model_name": "dinov2_vits14"
-        }
+        },
+        "description": "DINOv2 image embedder"
       }
     ]
   }
