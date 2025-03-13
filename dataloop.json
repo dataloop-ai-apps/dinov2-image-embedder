@@ -26,6 +26,7 @@
         "name": "dino_v2_adapter",
         "entryPoint": "adapter.py",
         "className": "DINOv2Adapter",
+        "computeConfig": "dino-v2-cpu",
         "initInputs": [
           {
             "type": "Model",
@@ -77,7 +78,6 @@
     "computeConfigs": [
       {
         "name": "dino-v2-cpu",
-        "moduleName": "dino_v2_adapter",
         "runtime": {
           "podType": "regular-m",
           "concurrency": 10,
