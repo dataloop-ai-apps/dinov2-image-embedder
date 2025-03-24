@@ -26,7 +26,7 @@
         "name": "dino_v2_adapter",
         "entryPoint": "adapter.py",
         "className": "DINOv2Adapter",
-        "computeConfig": "dino-v2-cpu",
+        "computeConfig": "dino-v2-cpu-embed",
         "initInputs": [
           {
             "type": "Model",
@@ -71,13 +71,70 @@
             ],
             "output": [],
             "displayName": "DINOv2 Dataset Features"
+          },
+          {
+            "name": "train_model",
+            "computeConfig": "dino-v2-train-evaluate",
+            "input": [
+              {
+                "type": "Model",
+                "name": "model",
+                "description": "Dataloop Model Entity"
+              }
+            ],
+            "output": [
+              {
+                "type": "Model",
+                "name": "model",
+                "description": "Dataloop Model Entity"
+              }
+            ],
+            "displayName": "Train a Model",
+            "displayIcon": "",
+            "description": "Function to train DinoV2"
+          },
+          {
+            "name": "evaluate_model",
+            "computeConfig": "dino-v2-train-evaluate",
+            "input": [
+              {
+                "type": "Model",
+                "name": "model",
+                "description": "Dataloop Model Entity"
+              },
+              {
+                "type": "Dataset",
+                "name": "dataset",
+                "description": "Dataloop Dataset Entity"
+              },
+              {
+                "type": "Json",
+                "name": "filters",
+                "description": "Dataloop Filter DQL"
+              }
+            ],
+            "output": [
+              {
+                "type": "Model",
+                "name": "model",
+                "description": "Dataloop Model Entity"
+              },
+              {
+                "type": "Dataset",
+                "name": "dataset",
+                "description": "Dataloop Dataset Entity"
+              }
+            ],
+            "displayName": "Evaluate a Model",
+            "displayIcon": "",
+            "description": "Function to evaluate DinoV2 model performance"
           }
         ]
       }
     ],
     "computeConfigs": [
       {
-        "name": "dino-v2-cpu",
+        "name": "dino-v2-cpu-embed",
         "runtime": {
           "podType": "regular-m",
           "concurrency": 10,
@@ -90,6 +147,21 @@
           }
         },
         "executionTimeout": 3600
+      },
+      {
+        "name": "dino-v2-train-evaluate",
+        "runtime": {
+          "podType": "gpu-t4",
+          "concurrency": 10,
+          "runnerImage": "gcr.io/viewo-g/piper/agent/runner/apps/dinov2-adapter:0.1.0",
+          "autoscaler": {
+            "type": "rabbitmq",
+            "minReplicas": 0,
+            "maxReplicas": 2,
+            "queueLength": 100
+          }
+        },
+        "executionTimeout": 36000
       }
     ],
     "models": [
@@ -99,8 +171,13 @@
         "status": "pre-trained",
         "scope": "project",
         "configuration": {
-          "batch_size": 10,
-          "model_name": "dinov2_vits14"
+          "model_name": "dinov2_vits14",
+          "num_epochs": 100,
+          "learning_rate": 0.00001,
+          "weight_decay": 0.0001,
+          "save_interval": 10,
+          "temperature": 0.5,
+          "batch_size": 8
         },
         "description": "DINOv2 image embedder"
       }
