@@ -5,14 +5,11 @@ import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from PIL import Image, ImageFile
 from typing import List
 import os
 import glob
-import numpy as np
-import math
 
 logger = logging.getLogger("[DINOV2-ADAPTER]")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -218,6 +215,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         weight_decay = self.configuration.get('weight_decay', 1e-4)
         save_interval = self.configuration.get('save_interval', 5)
         self.temperature = self.configuration.get('temperature', 0.5)
+        patience = self.configuration.get('patience', 10)
         
         train_dir = os.path.join(data_path, 'train')
         val_dir = os.path.join(data_path, 'validation')
@@ -286,6 +284,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         
         # Training loop
         best_val_loss = float('inf')
+        patience_counter = 0
         
         for epoch in range(num_epochs):
             logger.info(f"Epoch {epoch+1}/{num_epochs}")
@@ -327,6 +326,15 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                     'val_loss': val_loss
                 }, best_checkpoint_path)
                 logger.info(f"Best model updated at epoch {epoch+1} with validation loss {val_loss:.4f}")
+                patience_counter = 0  # Reset patience counter when we find a better model
+            else:
+                patience_counter += 1
+                logger.info(f"No improvement for {patience_counter} epochs")
+                
+                # Early stopping
+                if patience_counter >= patience:
+                    logger.info(f"Early stopping triggered after {epoch+1} epochs due to no improvement for {patience} epochs")
+                    break
     
     def embed_images(self, images: List[Image.Image]):
         """

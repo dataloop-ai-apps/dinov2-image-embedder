@@ -21,12 +21,44 @@
     "gitTag": "0.1.12"
   },
   "components": {
+    "computeConfigs": [
+      {
+        "name": "dino-v2-deploy",
+        "runtime": {
+          "podType": "regular-m",
+          "concurrency": 10,
+          "runnerImage": "gcr.io/viewo-g/piper/agent/runner/apps/dinov2-adapter:0.1.0",
+          "autoscaler": {
+            "type": "rabbitmq",
+            "minReplicas": 0,
+            "maxReplicas": 2,
+            "queueLength": 100
+          }
+        },
+        "executionTimeout": 3600
+      },
+      {
+        "name": "dino-v2-train-evaluate",
+        "runtime": {
+          "podType": "gpu-t4",
+          "concurrency": 10,
+          "runnerImage": "gcr.io/viewo-g/piper/agent/runner/apps/dinov2-adapter:0.1.0",
+          "autoscaler": {
+            "type": "rabbitmq",
+            "minReplicas": 0,
+            "maxReplicas": 2,
+            "queueLength": 100
+          }
+        },
+        "executionTimeout": 36000
+      }
+    ],
     "modules": [
       {
-        "name": "dino_v2_adapter",
+        "name": "dino-v2-module",
         "entryPoint": "adapter.py",
         "className": "DINOv2Adapter",
-        "computeConfig": "dino-v2-cpu-embed",
+        "computeConfig": "dino-v2-deploy",
         "initInputs": [
           {
             "type": "Model",
@@ -36,6 +68,7 @@
         "functions": [
           {
             "name": "embed_items",
+            "computeConfig": "dino-v2-deploy",
             "description": "Extract DINOv2 features on a single item",
             "input": [
               {
@@ -58,6 +91,7 @@
           },
           {
             "name": "embed_dataset",
+            "computeConfig": "dino-v2-deploy",
             "description": "Extract DINOv2 features on a dataset",
             "input": [
               {
@@ -73,7 +107,7 @@
             "displayName": "DINOv2 Dataset Features"
           },
           {
-            "name": "train_model",
+            "name": "train_model",  
             "computeConfig": "dino-v2-train-evaluate",
             "input": [
               {
@@ -132,42 +166,10 @@
         ]
       }
     ],
-    "computeConfigs": [
-      {
-        "name": "dino-v2-cpu-embed",
-        "runtime": {
-          "podType": "regular-m",
-          "concurrency": 10,
-          "runnerImage": "gcr.io/viewo-g/piper/agent/runner/apps/dinov2-adapter:0.1.0",
-          "autoscaler": {
-            "type": "rabbitmq",
-            "minReplicas": 0,
-            "maxReplicas": 2,
-            "queueLength": 100
-          }
-        },
-        "executionTimeout": 3600
-      },
-      {
-        "name": "dino-v2-train-evaluate",
-        "runtime": {
-          "podType": "gpu-t4",
-          "concurrency": 10,
-          "runnerImage": "gcr.io/viewo-g/piper/agent/runner/apps/dinov2-adapter:0.1.0",
-          "autoscaler": {
-            "type": "rabbitmq",
-            "minReplicas": 0,
-            "maxReplicas": 2,
-            "queueLength": 100
-          }
-        },
-        "executionTimeout": 36000
-      }
-    ],
     "models": [
       {
         "name": "dino-v2",
-        "moduleName": "dino_v2_adapter",
+        "moduleName": "dino-v2-module",
         "status": "pre-trained",
         "scope": "project",
         "configuration": {
@@ -177,7 +179,8 @@
           "weight_decay": 0.0001,
           "save_interval": 10,
           "temperature": 0.5,
-          "batch_size": 8
+          "batch_size": 8,
+          "patience": 10
         },
         "description": "DINOv2 image embedder"
       }
