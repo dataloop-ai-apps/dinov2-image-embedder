@@ -391,13 +391,18 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         return item
     
     def convert_from_dtlpy(self, data_path, **kwargs):
-        """ Convert Dataloop structure data to model structured
+        # Subsets validation
+        subsets = self.model_entity.metadata.get("system", {}).get("subsets", None)
+        if 'train' not in subsets:
+            raise ValueError('Could not find train set. DINOv2 requires train and validation set for training. '
+                             'Add a train set DQL filter in the dl.Model metadata')
+        if 'validation' not in subsets:
+            raise ValueError('Could not find validation set. DINOv2 requires train and validation set for training. '
+                             'Add a validation set DQL filter in the dl.Model metadata')
 
-            Virtual method - need to implement
-
-            e.g. take dlp dir structure and construct annotation file
-
-        :param data_path: str local File System directory path where
-                           we already downloaded the data from dataloop platform
-        :return:
-        """
+        for subset, filters_dict in subsets.items():
+            filters = dl.Filters(custom_filter=filters_dict)
+            pages = self.model_entity.dataset.items.list(filters=filters)
+            if pages.items_count == 0:
+                raise ValueError(f'Could not find items in subset {subset}. '
+                                 f'Make sure there are items in the data subsets.')
