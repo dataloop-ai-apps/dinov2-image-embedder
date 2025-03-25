@@ -173,9 +173,9 @@
         "status": "pre-trained",
         "scope": "project",
         "inputType": "image",
-        "outputType": null,
         "configuration": {
           "model_name": "dinov2_vits14",
+          "embeddings_size": 384,
           "num_epochs": 100,
           "learning_rate": 0.00001,
           "weight_decay": 0.0001,

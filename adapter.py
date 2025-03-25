@@ -54,11 +54,11 @@ class ProjectionHead(nn.Module):
 
 class DINOv2Adapter(dl.BaseModelAdapter):
     def __init__(self, model_entity=None):
-        super().__init__(model_entity)
         self.device = None
         self.backbone = None
         self.projection_head = None
         self.optimizer = None
+        super().__init__(model_entity)
         
     def load(self, local_path, **kwargs):
         """
@@ -78,6 +78,11 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         
         # Create projection head for contrastive learning
         input_dim = 384 if "vits" in model_name else 768 if "vitb" in model_name else 1024
+        
+        # Update the feature set size in the configuration
+        self.model_entity.configuration["embeddings_size"] = input_dim
+        self.model_entity.update(True)
+
         self.projection_head = ProjectionHead(input_dim=input_dim)
         self.projection_head.to(self.device)
         
@@ -375,14 +380,9 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         """
         features = []
         for item in batch:
-            if "image" in item.mimetype:
-                orig_image = Image.fromarray(
-                    item.download(save_locally=False, to_array=True)
-                )
-                image_features = self.embed_images([orig_image])
-                features.extend(image_features)
-            else:
-                features.append(None)
+            orig_image = Image.fromarray(item.download(save_locally=False, to_array=True))
+            image_features = self.embed_images([orig_image])
+            features.extend(image_features)
         return features
     
     def prepare_item_func(self, item: dl.Item):
