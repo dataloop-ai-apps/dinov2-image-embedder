@@ -64,6 +64,9 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         """
         Loads model checkpoint from a local directory.
         """
+        # This model does not requires an output type, so we had this to bypass the default output type which is "box"
+        self.model_entity.output_type = None
+        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"Using device: {self.device}")
         
