@@ -10,6 +10,7 @@ from PIL import Image, ImageFile
 from typing import List
 import os
 import glob
+import numpy as np
 
 logger = logging.getLogger("[DINOV2-ADAPTER]")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -310,7 +311,9 @@ class DINOv2Adapter(dl.BaseModelAdapter):
             
             # Update learning rate
             scheduler.step()
-            
+
+            self._update_model_metrics(epoch=epoch, train_loss=train_loss, val_loss=val_loss)
+
             # Save checkpoint at intervals
             if (epoch + 1) % save_interval == 0:
                 checkpoint_path = os.path.join(output_path, f"dino_backbone_epoch_{epoch+1}.pth")
@@ -344,6 +347,50 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                     logger.info(f"Early stopping triggered after {epoch+1} epochs due to no improvement for {patience} epochs")
                     break
     
+    def _update_model_metrics(self, epoch, train_loss, val_loss):
+        """
+        Updates model metrics in Dataloop platform.
+        
+        Args:
+            epoch (int): Current training epoch
+            train_loss (float): Training loss value
+            val_loss (float): Validation loss value
+        """
+        samples = []
+        metrics_dict = {
+            'loss/train': train_loss,
+            'loss/validation': val_loss
+        }
+        
+        for metric_name, value in metrics_dict.items():
+            legend, figure = metric_name.split('/')
+            logger.info(f'Updating figure {figure} with legend {legend} with value {value}')
+            
+            if not np.isfinite(value):
+                filters = dl.Filters(resource=dl.FiltersResource.METRICS)
+                filters.add(field='modelId', values=self.model_entity.id)
+                filters.add(field='figure', values=figure)
+                filters.add(field='data.x', values=epoch)
+                items = self.model_entity.metrics.list(filters=filters)
+                
+                if items.items_count > 0:
+                    value = items.items[0].y
+                else:
+                    value = 0 if figure == 'loss' else 0
+                logger.warning(f'Value is not finite. For figure {figure} and legend {legend} using value {value}')
+            
+            samples.append(dl.PlotSample(
+                figure=figure,
+                legend=legend,
+                x=epoch,
+                y=value
+            ))
+        
+        self.model_entity.metrics.create(
+            samples=samples,
+            dataset_id=self.model_entity.dataset_id
+        )
+
     def embed_images(self, images: List[Image.Image]):
         """
         Generate embeddings for a list of images.
