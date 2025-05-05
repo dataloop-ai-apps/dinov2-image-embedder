@@ -72,14 +72,16 @@
             "description": "Extract DINOv2 features on a single item",
             "input": [
               {
-                "type": "Item",
-                "name": "item"
+                "type": "Item[]",
+                "name": "items",
+                "description": "The input items for embeddings."
               }
             ],
             "output": [
               {
-                "type": "Item",
-                "name": "item"
+                "type": "Item[]",
+                "name": "items",
+                "description": "The same input items for embeddings."
               },
               {
                 "type": "Json",
