@@ -173,7 +173,7 @@
         "status": "pre-trained",
         "scope": "project",
         "inputType": "image",
-        "outputType": "self_supervised",
+        "outputType": "embedding",
         "configuration": {
           "model_name": "dinov2_vits14",
           "embeddings_size": 384,
