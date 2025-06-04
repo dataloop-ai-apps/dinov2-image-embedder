@@ -35,7 +35,7 @@
             "queueLength": 100
           }
         },
-        "executionTimeout": 3600
+        "executionTimeout": 26000
       },
       {
         "name": "dino-v2-train-evaluate",
