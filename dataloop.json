@@ -2,7 +2,7 @@
   "name": "dino-v2-adapter",
   "displayName": "DINOv2 Adapter",
   "description": "DINOv2 image embedder",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "scope": "public",
   "attributes": {
     "Category": "Model",
@@ -18,7 +18,7 @@
   "codebase": {
     "type": "git",
     "gitUrl": "https://github.com/dataloop-ai-apps/dino-v2-adapter",
-    "gitTag": "0.1.17"
+    "gitTag": "0.1.18"
   },
   "components": {
     "computeConfigs": [
