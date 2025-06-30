@@ -177,7 +177,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
             
             optimizer.zero_grad()
             
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast():
                 # Create two randomly augmented views of the same images
                 view1 = self.augment(images)
                 view2 = self.augment(images)
@@ -222,7 +222,8 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         save_interval = self.configuration.get('save_interval', 5)
         self.temperature = self.configuration.get('temperature', 0.5)
         patience = self.configuration.get('patience', 10)
-        
+        on_epoch_end_callback = kwargs.get('on_epoch_end_callback', None)
+
         train_dir = os.path.join(data_path, 'train')
         val_dir = os.path.join(data_path, 'validation')
         
@@ -343,6 +344,10 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                 if patience_counter >= patience:
                     logger.info(f"Early stopping triggered after {epoch+1} epochs due to no improvement for {patience} epochs")
                     break
+
+            if on_epoch_end_callback is not None:
+                on_epoch_end_callback(i_epoch=epoch,
+                                      n_epoch=num_epochs)
     
     def _update_model_metrics(self, epoch, train_loss, val_loss):
         """
