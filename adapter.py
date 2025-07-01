@@ -15,7 +15,8 @@ from tqdm import tqdm
 
 logger = logging.getLogger("[DINOV2-ADAPTER]")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
-
+# Suppress PIL debug logging
+logging.getLogger('PIL').setLevel(logging.WARNING)
 
 class SimpleDataset(Dataset):
     """
