@@ -36,8 +36,15 @@ To install the package and create the DINOv2 model adapter, you will need:
 
 The model configuration can be edited either through the Dataloop platform interface or via the SDK. The basic configurations include:
 
-* ```model_name```: architecture of the model (default: 'dinov2_vitb14', available options: 'dinov2_vits14', 'dinov2_vitb14', 'dinov2_vitl14', 'dinov2_vitg14')
-* ```batch_size```: batch size for processing images (default: 32)
+* ```model_name```: architecture of the model (default: 'dinov2_vits14', available options: 'dinov2_vits14', 'dinov2_vitb14', 'dinov2_vitl14', 'dinov2_vitg14')
+* ```embeddings_size```: size of the output embeddings (default: 384)
+* ```batch_size```: batch size for processing images (default: 8)
+* ```num_epochs```: number of training epochs (default: 100)
+* ```learning_rate```: learning rate for training (default: 0.0001)
+* ```weight_decay```: weight decay for regularization (default: 0.001)
+* ```save_interval```: interval for saving model checkpoints (default: 10)
+* ```temperature```: temperature parameter for training (default: 0.5)
+* ```patience```: early stopping patience (default: 10)
 
 ## Usage
 
