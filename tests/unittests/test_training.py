@@ -33,17 +33,17 @@ class TestModelAdapter(unittest.TestCase):
 
         model_entity.dataset_id = ""
         
-        # Add test-friendly configuration
-        if not hasattr(model_entity, 'configuration') or model_entity.configuration is None:
-            model_entity.configuration = {}
+        # # Add test-friendly configuration
+        # if not hasattr(model_entity, 'configuration') or model_entity.configuration is None:
+        #     model_entity.configuration = {}
         
-        # Use smaller parameters for testing
-        model_entity.configuration.update({
-            'num_epochs': 10,
-            'batch_size': 4,
-            'learning_rate': 1e-4,
-            'save_interval': 10
-        })
+        # # Use smaller parameters for testing
+        # model_entity.configuration.update({
+        #     'num_epochs': 10,
+        #     'batch_size': 4,
+        #     'learning_rate': 1e-4,
+        #     'save_interval': 10
+        # })
 
         model_entity.metadata['system'] = {}
         model_entity.metadata['system']['subsets'] = {'train': dl.Filters(field='metadata.system.tags.train', values=True).prepare(),

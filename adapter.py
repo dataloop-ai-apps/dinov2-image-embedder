@@ -18,6 +18,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 # Suppress PIL debug logging
 logging.getLogger('PIL').setLevel(logging.WARNING)
 
+
 class SimpleDataset(Dataset):
     """
     A simple dataset loader for self-supervised learning.
@@ -36,7 +37,23 @@ class SimpleDataset(Dataset):
         image = Image.open(self.image_paths[idx]).convert('RGB')
         if self.transform:
             image = self.transform(image)
-        return image
+        return image, 0
+
+class ProjectionHead(nn.Module):
+    """
+    Projection head for contrastive learning.
+    Maps representations to the space where contrastive loss is applied.
+    """
+    def __init__(self, input_dim=1024, hidden_dim=2048, output_dim=128):
+        super().__init__()
+        self.layer1 = nn.Linear(input_dim, hidden_dim)
+        self.layer2 = nn.Linear(hidden_dim, output_dim)
+        
+    def forward(self, x):
+        x = self.layer1(x)
+        x = F.relu(x)
+        x = self.layer2(x)
+        return x
 
 
 class DINOv2Adapter(dl.BaseModelAdapter):
@@ -44,10 +61,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         self.device = None
         self.backbone = None
         self.projection_head = None
-        self.momentum_backbone = None
-        self.momentum_projection_head = None
         self.optimizer = None
-        self.momentum = 0.999
         super().__init__(model_entity)
         
     def load(self, local_path, **kwargs):
@@ -63,49 +77,16 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         self.backbone = torch.hub.load("facebookresearch/dinov2", model_name)
         self.backbone.to(self.device)
         
-        # Create projection head with larger dimensions and more layers
+        # Create projection head for contrastive learning
         input_dim = 384 if "vits" in model_name else 768 if "vitb" in model_name else 1024
-        
-        self.projection_head = nn.Sequential(
-            nn.Linear(input_dim, 2048),
-            nn.BatchNorm1d(2048),
-            nn.ReLU(inplace=True),
-            nn.Linear(2048, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(inplace=True),
-            nn.Linear(512, 128)
-        )
-        self.projection_head.to(self.device)
-        
-        # Create momentum encoder to prevent collapse
-        self.momentum_backbone = torch.hub.load("facebookresearch/dinov2", model_name)
-        self.momentum_backbone.to(self.device)
-        
-        self.momentum_projection_head = nn.Sequential(
-            nn.Linear(input_dim, 2048),
-            nn.BatchNorm1d(2048),
-            nn.ReLU(inplace=True),
-            nn.Linear(2048, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(inplace=True),
-            nn.Linear(512, 128)
-        )
-        self.momentum_projection_head.to(self.device)
-        
-        # Initialize momentum encoder with same weights
-        self._copy_params(self.backbone, self.momentum_backbone)
-        self._copy_params(self.projection_head, self.momentum_projection_head)
-        
-        # Freeze momentum encoder
-        for param in self.momentum_backbone.parameters():
-            param.requires_grad = False
-        for param in self.momentum_projection_head.parameters():
-            param.requires_grad = False
         
         # Update the feature set size in the configuration
         self.model_entity.configuration["embeddings_size"] = input_dim
         self.model_entity.update(True)
 
+        self.projection_head = ProjectionHead(input_dim=input_dim)
+        self.projection_head.to(self.device)
+        
         # Load checkpoint if exists
         checkpoint_path = os.path.join(local_path, 'dino_backbone_checkpoint.pth')
         if os.path.exists(checkpoint_path):
@@ -122,11 +103,6 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                     logger.warning(f"Unexpected keys in backbone: {unexpected_keys}")
                     
                 self.projection_head.load_state_dict(checkpoint['projection_head_state_dict'])
-                
-                # Update momentum encoder
-                self._copy_params(self.backbone, self.momentum_backbone)
-                self._copy_params(self.projection_head, self.momentum_projection_head)
-                
                 logger.info("Checkpoint loaded successfully")
             except Exception as e:
                 logger.error(f"Error loading checkpoint: {e}")
@@ -144,90 +120,57 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         torch.save(checkpoint, checkpoint_path)
         logger.info(f"Checkpoint saved to {checkpoint_path}")
     
-    def _copy_params(self, source, target):
-        """Copy parameters from source to target network."""
-        for param_source, param_target in zip(source.parameters(), target.parameters()):
-            param_target.data.copy_(param_source.data)
-
-    def _update_momentum_encoder(self):
-        """Update momentum encoder with exponential moving average."""
-        for param_online, param_target in zip(self.backbone.parameters(), self.momentum_backbone.parameters()):
-            param_target.data = param_target.data * self.momentum + param_online.data * (1. - self.momentum)
-        
-        for param_online, param_target in zip(self.projection_head.parameters(), self.momentum_projection_head.parameters()):
-            param_target.data = param_target.data * self.momentum + param_online.data * (1. - self.momentum)
-    
     def augment(self, images):
         """
-        Apply random augmentations to tensor images for contrastive learning.
+        Apply random augmentations to create different views of the same images.
         """
-        # Random resized crop
-        h, w = images.shape[-2], images.shape[-1]
+        # Define augmentations for contrastive learning
+        color_jitter = transforms.ColorJitter(0.8, 0.8, 0.8, 0.2)
+        augmentation = transforms.Compose([
+            transforms.RandomResizedCrop(224, scale=(0.2, 1.0)),
+            transforms.RandomApply([color_jitter], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.RandomHorizontalFlip(),
+            transforms.GaussianBlur(kernel_size=23, sigma=(0.1, 2.0)),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
         
-        # Calculate crop parameters similar to RandomResizedCrop
-        scale_min, scale_max = 0.2, 1.0
-        ratio_min, ratio_max = 3./4., 4./3.
+        return augmentation(images)
+    
+    def nt_xent_loss(self, similarity_matrix, temperature=0.5):
+        """
+        Compute NT-Xent loss (normalized temperature-scaled cross entropy).
+        This is the contrastive loss function used in SimCLR.
+        """
+        batch_size = similarity_matrix.size(0)
         
-        for _ in range(10):  # Try up to 10 times to get a valid crop
-            target_area = h * w * torch.empty(1).uniform_(scale_min, scale_max).item()
-            log_ratio = torch.empty(1).uniform_(torch.log(torch.tensor(ratio_min)), torch.log(torch.tensor(ratio_max))).item()
-            aspect_ratio = torch.exp(torch.tensor(log_ratio)).item()
-            
-            crop_w = int(round((target_area * aspect_ratio) ** 0.5))
-            crop_h = int(round((target_area / aspect_ratio) ** 0.5))
-            
-            if 0 < crop_h <= h and 0 < crop_w <= w:
-                top = torch.randint(0, h - crop_h + 1, (1,)).item()
-                left = torch.randint(0, w - crop_w + 1, (1,)).item()
-                break
-        else:
-            # Fallback to center crop if no valid crop found
-            crop_h, crop_w = min(h, w), min(h, w)
-            top = (h - crop_h) // 2
-            left = (w - crop_w) // 2
+        # Create labels for positive pairs (diagonal elements)
+        labels = torch.arange(batch_size).to(self.device)
         
-        # Perform the crop and resize
-        images = transforms.functional.crop(images, top, left, crop_h, crop_w)
-        images = transforms.functional.resize(images, (224, 224))
+        # For numerical stability
+        logits_max, _ = torch.max(similarity_matrix, dim=1, keepdim=True)
+        logits = similarity_matrix - logits_max.detach()
         
-        # Color jitter
-        if torch.rand(1) < 0.8:
-            brightness_factor = 1 + 0.8 * (torch.rand(1) - 0.5)
-            contrast_factor = 1 + 0.8 * (torch.rand(1) - 0.5)
-            saturation_factor = 1 + 0.8 * (torch.rand(1) - 0.5)
-            hue_factor = 0.2 * (torch.rand(1) - 0.5)
-            
-            images = transforms.functional.adjust_brightness(images, brightness_factor.item())
-            images = transforms.functional.adjust_contrast(images, contrast_factor.item())
-            images = transforms.functional.adjust_saturation(images, saturation_factor.item())
-            images = transforms.functional.adjust_hue(images, hue_factor.item())
+        # Divide by temperature
+        logits = logits / temperature
         
-        # Random grayscale
-        if torch.rand(1) < 0.2:
-            images = transforms.functional.rgb_to_grayscale(images, num_output_channels=3)
+        # Compute log_prob
+        exp_logits = torch.exp(logits)
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
         
-        # Random horizontal flip
-        if torch.rand(1) < 0.5:
-            images = transforms.functional.hflip(images)
+        # Compute mean of log-likelihood over positive samples
+        mask = torch.zeros_like(log_prob)
+        mask.scatter_(1, labels.unsqueeze(1), 1)
+        mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
         
-        # Gaussian blur
-        if torch.rand(1) < 0.5:
-            kernel_size = 23
-            sigma = 0.1 + (2.0 - 0.1) * torch.rand(1)
-            images = transforms.functional.gaussian_blur(images, kernel_size, sigma.item())
+        # Loss
+        loss = -mean_log_prob_pos.mean()
         
-        # Normalize
-        images = transforms.functional.normalize(
-            images, 
-            mean=[0.485, 0.456, 0.406], 
-            std=[0.229, 0.224, 0.225]
-        )
-        
-        return images
+        return loss
     
     def _process_epoch_dataloader(self, dataloader, optimizer, scaler, mode="train"):
         """
-        Process one epoch using contrastive learning with momentum encoder.
+        Process one epoch using contrastive learning.
         """
         epoch_loss = 0.0
         num_batches = 0
@@ -235,16 +178,12 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         if mode == "train":
             self.backbone.train()
             self.projection_head.train()
-            self.momentum_backbone.eval()
-            self.momentum_projection_head.eval()
         else:
             self.backbone.eval()
             self.projection_head.eval()
-            self.momentum_backbone.eval()
-            self.momentum_projection_head.eval()
         
         for batch in tqdm(dataloader, unit="batch"):
-            images = batch.to(self.device)
+            images = batch[0].to(self.device)
             batch_size = images.shape[0]
             
             # Skip small batches
@@ -259,50 +198,28 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                 view1 = self.augment(images)
                 view2 = self.augment(images)
                 
-                # Online network (trainable)
+                # Get embeddings from the backbone
                 emb1 = self.backbone(view1)
+                emb2 = self.backbone(view2)
+                
+                # Project embeddings to contrastive space
                 z1 = self.projection_head(emb1)
+                z2 = self.projection_head(emb2)
+                
+                # Normalize projections
                 z1 = F.normalize(z1, dim=1)
+                z2 = F.normalize(z2, dim=1)
                 
-                # Momentum network (not trainable)
-                with torch.no_grad():
-                    emb2 = self.momentum_backbone(view2)
-                    z2 = self.momentum_projection_head(emb2)
-                    z2 = F.normalize(z2, dim=1)
+                # Compute similarity matrix
+                similarity_matrix = torch.matmul(z1, z2.T)
                 
-                # Compute loss using asymmetric approach
-                # Positive pairs: z1[i] should be similar to z2[i]
-                pos_sim = torch.sum(z1 * z2, dim=1)  # [batch_size]
-                
-                # Negative pairs: z1[i] should be dissimilar to z2[j] where j != i
-                all_sim = torch.matmul(z1, z2.T)  # [batch_size, batch_size]
-                
-                # Apply temperature
-                pos_sim = pos_sim / self.temperature
-                all_sim = all_sim / self.temperature
-                
-                # Compute InfoNCE loss
-                loss = 0
-                for i in range(batch_size):
-                    numerator = torch.exp(pos_sim[i])
-                    denominator = torch.sum(torch.exp(all_sim[i]))
-                    loss += -torch.log(numerator / denominator)
-                
-                loss = loss / batch_size
+                # Compute contrastive loss
+                loss = self.nt_xent_loss(similarity_matrix, self.temperature)
             
             if mode == "train":
                 scaler.scale(loss).backward()
-                
-                # Gradient clipping to prevent explosion
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(self.backbone.parameters(), max_norm=1.0)
-                torch.nn.utils.clip_grad_norm_(self.projection_head.parameters(), max_norm=1.0)
-                
                 scaler.step(optimizer)
                 scaler.update()
-                
-                # Update momentum encoder
-                self._update_momentum_encoder()
             
             epoch_loss += loss.item()
             num_batches += 1
@@ -315,34 +232,25 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         """
         # Hyperparameters
         num_epochs = self.configuration.get('num_epochs', 20)
-        learning_rate = self.configuration.get('learning_rate', 1e-4)
-        batch_size = self.configuration.get('batch_size', 8)
-        weight_decay = self.configuration.get('weight_decay', 1e-2)
+        learning_rate = self.configuration.get('learning_rate', 1e-5)
+        batch_size = self.configuration.get('batch_size', 32)
+        weight_decay = self.configuration.get('weight_decay', 1e-4)
         save_interval = self.configuration.get('save_interval', 5)
-        self.temperature = self.configuration.get('temperature', 0.1)
+        self.temperature = self.configuration.get('temperature', 0.5)
         patience = self.configuration.get('patience', 10)
         on_epoch_end_callback = kwargs.get('on_epoch_end_callback', None)
-
+        
         train_dir = os.path.join(data_path, 'train')
         val_dir = os.path.join(data_path, 'validation')
         
-        # Base transform for loading images as tensors
-        base_transform = transforms.Compose([
+        transform = transforms.Compose([
             transforms.Resize((256, 256)),
             transforms.ToTensor(),
-        ])
-        
-        # Deterministic validation transform (fully preprocessed)
-        val_transform = transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
         # Create datasets and dataloaders
-        train_dataset = SimpleDataset(train_dir, transform=base_transform)
-        val_dataset = SimpleDataset(val_dir, transform=val_transform)
+        train_dataset = SimpleDataset(train_dir, transform=transform)
+        val_dataset = SimpleDataset(val_dir, transform=transform)
         
         logger.info(f"Training samples: {len(train_dataset)}, Validation samples: {len(val_dataset)}")
         
@@ -383,7 +291,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                 "weight_decay": weight_decay
             })
         
-        # Projection head parameters
+        # Projection head parameters (always use full learning rate)
         param_groups.append({
             "params": self.projection_head.parameters(),
             "lr": learning_rate,
@@ -443,13 +351,14 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                     'val_loss': val_loss
                 }, best_checkpoint_path)
                 logger.info(f"Best model updated at epoch {epoch+1} with validation loss {val_loss:.4f}")
-                patience_counter = 0
+                patience_counter = 0  # Reset patience counter when we find a better model
             else:
                 patience_counter += 1
+                logger.info(f"No improvement for {patience_counter} epochs")
                 
                 # Early stopping
                 if patience_counter >= patience:
-                    logger.info(f"Early stopping triggered after {epoch+1} epochs")
+                    logger.info(f"Early stopping triggered after {epoch+1} epochs due to no improvement for {patience} epochs")
                     break
 
             if on_epoch_end_callback is not None:
