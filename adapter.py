@@ -11,9 +11,12 @@ from typing import List
 import os
 import glob
 import numpy as np
+from tqdm import tqdm
 
 logger = logging.getLogger("[DINOV2-ADAPTER]")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+# Suppress PIL debug logging
+logging.getLogger('PIL').setLevel(logging.WARNING)
 
 
 class SimpleDataset(Dataset):
@@ -65,7 +68,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         """
         Loads model checkpoint from a local directory.
         """
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {self.device}")
         
         # Load a pre-trained DINOv2 backbone
@@ -89,9 +92,21 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         if os.path.exists(checkpoint_path):
             logger.info(f"Loading checkpoint from {checkpoint_path}")
             checkpoint = torch.load(checkpoint_path, map_location=self.device)
-            self.backbone.load_state_dict(checkpoint['backbone_state_dict'], strict=False)
-            self.projection_head.load_state_dict(checkpoint['projection_head_state_dict'])
-            logger.info("Checkpoint loaded successfully")
+            
+            try:
+                missing_keys, unexpected_keys = self.backbone.load_state_dict(
+                    checkpoint['backbone_state_dict'], strict=False
+                )
+                if missing_keys:
+                    logger.warning(f"Missing keys in backbone: {missing_keys}")
+                if unexpected_keys:
+                    logger.warning(f"Unexpected keys in backbone: {unexpected_keys}")
+                    
+                self.projection_head.load_state_dict(checkpoint['projection_head_state_dict'])
+                logger.info("Checkpoint loaded successfully")
+            except Exception as e:
+                logger.error(f"Error loading checkpoint: {e}")
+                logger.info("Proceeding with pre-trained backbone and new projection head")
         else:
             logger.info("No checkpoint found; using pre-trained backbone with new projection head")
     
@@ -167,7 +182,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
             self.backbone.eval()
             self.projection_head.eval()
         
-        for batch in dataloader:
+        for batch in tqdm(dataloader, unit="batch"):
             images = batch[0].to(self.device)
             batch_size = images.shape[0]
             
@@ -175,9 +190,10 @@ class DINOv2Adapter(dl.BaseModelAdapter):
             if batch_size < 2:
                 continue
             
-            optimizer.zero_grad()
+            if mode == "train":
+                optimizer.zero_grad()
             
-            with torch.cuda.amp.autocast():
+            with torch.autocast(device_type=self.device, enabled=(self.device == "cuda")):
                 # Create two randomly augmented views of the same images
                 view1 = self.augment(images)
                 view2 = self.augment(images)
@@ -222,6 +238,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         save_interval = self.configuration.get('save_interval', 5)
         self.temperature = self.configuration.get('temperature', 0.5)
         patience = self.configuration.get('patience', 10)
+        on_epoch_end_callback = kwargs.get('on_epoch_end_callback', None)
         
         train_dir = os.path.join(data_path, 'train')
         val_dir = os.path.join(data_path, 'validation')
@@ -234,6 +251,8 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         # Create datasets and dataloaders
         train_dataset = SimpleDataset(train_dir, transform=transform)
         val_dataset = SimpleDataset(val_dir, transform=transform)
+        
+        logger.info(f"Training samples: {len(train_dataset)}, Validation samples: {len(val_dataset)}")
         
         train_loader = DataLoader(
             train_dataset, 
@@ -285,8 +304,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
             self.optimizer, T_max=num_epochs, eta_min=learning_rate * 0.01
         )
         
-        # Create gradient scaler for mixed precision training
-        scaler = torch.cuda.amp.GradScaler()
+        scaler = torch.GradScaler(device=self.device)
         
         # Training loop
         best_val_loss = float('inf')
@@ -304,7 +322,6 @@ class DINOv2Adapter(dl.BaseModelAdapter):
             
             # Log progress
             logger.info(f"Epoch {epoch+1}: Training Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}")
-            print(f"Epoch {epoch+1}: Training Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}")
             
             # Update learning rate
             scheduler.step()
@@ -321,7 +338,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                     'optimizer_state_dict': self.optimizer.state_dict(),
                     'scheduler_state_dict': scheduler.state_dict()
                 }, checkpoint_path)
-                logger.info(f"Checkpoint saved at epoch {epoch+1} to {checkpoint_path}")
+                logger.info(f"Checkpoint saved at epoch {epoch+1}")
             
             # Save best model
             if val_loss < best_val_loss:
@@ -343,15 +360,13 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                 if patience_counter >= patience:
                     logger.info(f"Early stopping triggered after {epoch+1} epochs due to no improvement for {patience} epochs")
                     break
+
+            if on_epoch_end_callback is not None:
+                on_epoch_end_callback(i_epoch=epoch, n_epoch=num_epochs)
     
     def _update_model_metrics(self, epoch, train_loss, val_loss):
         """
         Updates model metrics in Dataloop platform.
-        
-        Args:
-            epoch (int): Current training epoch
-            train_loss (float): Training loss value
-            val_loss (float): Validation loss value
         """
         samples = []
         metrics_dict = {
@@ -361,7 +376,6 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         
         for metric_name, value in metrics_dict.items():
             legend, figure = metric_name.split('/')
-            logger.info(f'Updating figure {figure} with legend {legend} with value {value}')
             
             if not np.isfinite(value):
                 filters = dl.Filters(resource=dl.FiltersResource.METRICS)
@@ -373,8 +387,8 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                 if items.items_count > 0:
                     value = items.items[0].y
                 else:
-                    value = 0 if figure == 'loss' else 0
-                logger.warning(f'Value is not finite. For figure {figure} and legend {legend} using value {value}')
+                    value = 0
+                logger.warning(f'Value is not finite. Using value {value} for figure {figure}')
             
             samples.append(dl.PlotSample(
                 figure=figure,
@@ -392,7 +406,6 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         """
         Generate embeddings for a list of images.
         """
-        # Preprocess
         transform = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
@@ -441,15 +454,12 @@ class DINOv2Adapter(dl.BaseModelAdapter):
         # Subsets validation
         subsets = self.model_entity.metadata.get("system", {}).get("subsets", None)
         if 'train' not in subsets:
-            raise ValueError('Could not find train set. DINOv2 requires train and validation set for training. '
-                             'Add a train set DQL filter in the dl.Model metadata')
+            raise ValueError('Could not find train set. DINOv2 requires train and validation set for training.')
         if 'validation' not in subsets:
-            raise ValueError('Could not find validation set. DINOv2 requires train and validation set for training. '
-                             'Add a validation set DQL filter in the dl.Model metadata')
+            raise ValueError('Could not find validation set. DINOv2 requires train and validation set for training.')
 
         for subset, filters_dict in subsets.items():
             filters = dl.Filters(custom_filter=filters_dict)
             pages = self.model_entity.dataset.items.list(filters=filters)
             if pages.items_count == 0:
-                raise ValueError(f'Could not find items in subset {subset}. '
-                                 f'Make sure there are items in the data subsets.')
+                raise ValueError(f'Could not find items in subset {subset}.')
