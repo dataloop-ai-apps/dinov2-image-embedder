@@ -103,7 +103,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                     
                 self.projection_head.load_state_dict(checkpoint['projection_head_state_dict'])
                 logger.info("Checkpoint loaded successfully")
-            except (RuntimeError, KeyError) as e:
+            except (RuntimeError, KeyError, TypeError) as e:
                 logger.error(f"Error loading checkpoint: {e}")
                 logger.info("Proceeding with pre-trained backbone and new projection head")
         else:
@@ -303,7 +303,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
             self.optimizer, T_max=num_epochs, eta_min=learning_rate * 0.01
         )
         
-        scaler = torch.GradScaler(device=self.device)
+        scaler = torch.cuda.amp.GradScaler(enabled=(self.device == "cuda"))
         
         # Training loop
         best_val_loss = float('inf')
