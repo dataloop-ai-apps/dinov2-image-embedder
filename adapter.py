@@ -1,6 +1,5 @@
 import dtlpy as dl
 import torchvision.transforms as transforms
-import traceback
 import logging
 import torch
 import torch.nn as nn
@@ -104,7 +103,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                     
                 self.projection_head.load_state_dict(checkpoint['projection_head_state_dict'])
                 logger.info("Checkpoint loaded successfully")
-            except Exception as e:
+            except (RuntimeError, KeyError, TypeError) as e:
                 logger.error(f"Error loading checkpoint: {e}")
                 logger.info("Proceeding with pre-trained backbone and new projection head")
         else:
@@ -304,7 +303,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
             self.optimizer, T_max=num_epochs, eta_min=learning_rate * 0.01
         )
         
-        scaler = torch.GradScaler(device=self.device)
+        scaler = torch.cuda.amp.GradScaler(enabled=(self.device == "cuda"))
         
         # Training loop
         best_val_loss = float('inf')
@@ -420,8 +419,8 @@ class DINOv2Adapter(dl.BaseModelAdapter):
                     image = image.convert("RGB")
                 image_tensor = transform(image).unsqueeze(0)
                 batch_tensors.append(image_tensor)
-            except Exception as e:
-                raise Exception(f"Failed to preprocess image: {traceback.format_exc()}")
+            except (OSError, ValueError, RuntimeError) as e:
+                raise ValueError(f"Failed to preprocess image: {e}") from e
         
         batch = torch.cat(batch_tensors).to(self.device)
         
