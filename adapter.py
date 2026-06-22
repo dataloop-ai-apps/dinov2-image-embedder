@@ -365,7 +365,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
     
     def _update_model_metrics(self, epoch, train_loss, val_loss):
         """
-        Updates model metrics in Dataloop platform.
+        Updates model metrics in DDOE platform.
         """
         samples = []
         metrics_dict = {
@@ -432,7 +432,7 @@ class DINOv2Adapter(dl.BaseModelAdapter):
     
     def embed(self, batch: List[dl.Item], **kwargs):
         """
-        Generate embeddings for a list of Dataloop items.
+        Generate embeddings for a list of DDOE items.
         """
         features = []
         for item in batch:

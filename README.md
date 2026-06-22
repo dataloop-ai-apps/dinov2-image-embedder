@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This repository provides a model integration between [Meta AI's DINOv2](https://github.com/facebookresearch/dinov2) model and the [Dataloop platform](https://dataloop.ai/).
+This repository provides a model integration between [Meta AI's DINOv2](https://github.com/facebookresearch/dinov2) model and the [DDOE platform](https://dataloop.ai/).
 
 DINOv2 is a state-of-the-art computer vision foundation model that produces high-quality visual features and achieves excellent performance on a wide range of vision tasks. The model is trained using self-supervised learning on a large dataset of images without requiring manual annotations.
 
@@ -24,17 +24,17 @@ DINOv2 was developed by researchers at Meta AI as a successor to the original DI
 * torchvision
 * numpy
 * Pillow
-* An account in the [Dataloop platform](https://console.dataloop.ai/)
+* An account in the [DDOE platform](https://console.dataloop.ai/)
 
 ## Installation
 
 To install the package and create the DINOv2 model adapter, you will need:
-1. A [project](https://developers.dataloop.ai/tutorials/getting_started/sdk_overview/chapter/#to-create-a-new-project) in the Dataloop platform
+1. A [project](https://developers.dataloop.ai/tutorials/getting_started/sdk_overview/chapter/#to-create-a-new-project) in the DDOE platform
 2. A [dataset](https://developers.dataloop.ai/tutorials/data_management/manage_datasets/chapter/#create-dataset) of images to generate embeddings for
 
 ### Configuration
 
-The model configuration can be edited either through the Dataloop platform interface or via the SDK. The basic configurations include:
+The model configuration can be edited either through the DDOE platform interface or via the SDK. The basic configurations include:
 
 * ```model_name```: architecture of the model (default: 'dinov2_vits14', available options: 'dinov2_vits14', 'dinov2_vitb14', 'dinov2_vitl14', 'dinov2_vitg14')
 * ```embeddings_size```: size of the output embeddings (default: 384)
@@ -51,12 +51,12 @@ The model configuration can be edited either through the Dataloop platform inter
 The adapter provides functionality to:
 1. Generate embeddings for individual images
 2. Batch process multiple images
-3. Store embeddings as metadata in Dataloop's platform
+3. Store embeddings as metadata in DDOE's platform
 4. Use embeddings for similarity search and other downstream tasks
 
 ## Deployment
 
-After installation, the model needs to be deployed to be available for inference. This can be done through the Dataloop platform or programmatically via the SDK.
+After installation, the model needs to be deployed to be available for inference. This can be done through the DDOE platform or programmatically via the SDK.
 
 ## Attribution
 
